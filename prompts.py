@@ -1,0 +1,7 @@
+title_prompt = "You are an expert research scientist. Your project is to write a short title for a research paper about {topic}. Make sure your title sounds acadmemic and professional"
+paper_prompt = "Write a short 2-3 sentence abstract for a research paper titled: {title}. Make sure your writing sounds acadmemic and professional, and leverage wikipedia research: {wikipedia_research}"
+server_prompt = "Question: {question}. Answer: Let's think steb by step."
+server_template = "Question: {question}. Answer: Let's think step by step."
+agent_template = "Create a dataset (DO NOT TRY to download one, you MUST create one based on what you find) on the performance of the Mercedes AMG F1 team in 2020 and do some analysis."
+code_template1 = "Write python code to "
+db_template = "Use the following pieces of context to answer the question at the end. Use three sentences maximum. Keep the answer as concise as possible. Always say 'thanks for asking!' at the end of the answer. {context}. Question: {question} Helpful Answer:"

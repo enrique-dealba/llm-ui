@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Agent LLM</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+            font-family: Arial, sans-serif;
+        }
+        #chat-area {
+            width: 80%;
+            height: 60vh;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            background-color: white;
+        }
+        .message {
+            margin: 5px;
+            padding: 10px;
+            border-radius: 5px;
+            word-wrap: break-word; /* added for python code */
+            white-space: pre-wrap; /* added for python code */
+        }
+        .user {
+            align-self: flex-end;
+            background-color: #003151;
+            color: white;
+        }
+        .bot {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Agent LLM</h1>
+    <div id="chat-area"></div>
+    <input type="text" id="message-input" placeholder="Type your task here...">
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        async function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const chatArea = document.getElementById('chat-area');
+    
+            const message = messageInput.value;
+            chatArea.innerHTML += formatMessage(message, 'user');
+            messageInput.value = '';
+    
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: message })
+            });
+    
+            if (!response.ok) {
+                chatArea.innerHTML += formatMessage('Error occurred while processing the request.', 'bot');
+            } else {
+                const data = await response.json();
+    
+                // Assume that data.response is an array of strings.
+                data.response.forEach(message => {
+                    chatArea.innerHTML += formatMessage(message, 'bot');
+                });
+            }
+    
+            // Scroll chat area to the bottom
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+    
+        // This function is used to format messages, highlighting code parts.
+        function formatMessage(message, sender) {
+            const pythonKeyword = 'Python_REPL';
+            const codeStartKeyword = 'Action Input:';
+            const codeEndKeyword = 'Observation:';
+    
+            if (message.includes(pythonKeyword)) {
+                const codeStart = message.indexOf(codeStartKeyword);
+                const codeEnd = message.indexOf(codeEndKeyword);
+    
+                if (codeStart !== -1 && codeEnd !== -1) {
+                    const nonCodePart1 = message.slice(0, codeStart);
+                    let codePart = message.slice(codeStart + codeStartKeyword.length, codeEnd);
+                    const nonCodePart2 = message.slice(codeEnd);
+    
+                    // Format the code part for better readability
+                    codePart = codePart.replace(/;/g, ';\n').replace(/}/g, '}\n').replace(/,\s/g, ',\n');
+    
+                    message = nonCodePart1 + '<pre>' + codePart + '</pre>' + nonCodePart2;
+                }
+            }
+    
+            // Wrap it inside a div tag.
+            return `<div class="message ${sender}">${message}</div>`;
+        }
+    </script>
+    
+    
+</body>
+</html>
