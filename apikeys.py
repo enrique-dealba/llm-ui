@@ -1,3 +1,3 @@
-open_ai_key = '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'
-hf_key = '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'
-serpapi_key = '0fcfb445ecbbf8b3e7bdfccd202f725c9424d87ae2526b2b37fab7175f25b88d'
+open_ai_key = ''
+hf_key = ''
+serpapi_key = ''
