@@ -7,7 +7,7 @@ import re
 import langchain
 
 from typing import List, Dict, Any, Optional, Union
-from apikeys import open_ai_key, hf_key, serpapi_key
+from apikeys import open_ai_key, hf_key, serpapi_key, langsmith_key
 from prompts import server_template, agent_template, template_with_history
 from agent_utils import get_agent_thoughts, extract_code_from_response
 from test_files.responses import responses_1, responses_2, code_1, code_2, code_3, code_4
@@ -44,6 +44,11 @@ from langchain.agents import (
 os.environ['OPENAI_API_KEY'] = open_ai_key
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = hf_key
 os.environ['SERPAPI_API_KEY'] = serpapi_key
+## LangChain LangSmith Project
+os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
+os.environ['LANGCHAIN_API_KEY'] = langsmith_key
+os.environ['LANGCHAIN_PROJECT'] = 'edealba-llm-ui'
 
 app = Flask(__name__)
 
