@@ -24,23 +24,17 @@ def chat() -> jsonify:
     except Exception as e:
         return server.error_handler(e)
 
-def get_parser():
-	parser = argparse.ArgumentParser(description="Run the Flask server")
-	parser.add_argument('--local', action='store_true', help='Use local server settings')
-	parser.add_argument('--mode', choices=['non-vectordb', 'vectordb', 'vectordb-memory'],
-                     default='vectordb-memory', help='Choose the server mode')
-	return parser
-
-## TODO: add options for task-code AND convo-code as server modes
-## TODO: add multi-chat multi-message functionality
 def create_parser() -> argparse.ArgumentParser:
     """Creates a command-line argument parser."""
     parser = argparse.ArgumentParser(description="Run the Flask server")
-    parser.add_argument('--local', action='store_true', help='Use local server settings')
+	# Usage: `--llm local` or `--llm davinci` etc
+    parser.add_argument('--llm', choices=['local', 'chatgpt', 'davinci'], help='Choose an LLM for Agent')
+	# Usage: `--mode text-code` or `--mode convo-code` etc
+    parser.add_argument('--mode', choices=['text-code', 'convo-code'], help='Choose an Agent mode')
     return parser
 
 if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
-    server = AgentServer(use_local=args.local, template=server_template)
+    server = AgentServer(llm_mode=args.llm, agent_mode=args.mode, template=server_template)
     app.run()

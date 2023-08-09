@@ -230,7 +230,7 @@ def execute_and_test_code(code_blocks: OrderedDict):
     exec_env = execute_code(code_text)
     return exec_env is not None
 
-def find_valid_blocks(code_blocks: OrderedDict, debug=False):
+def find_valid_blocks_prev(code_blocks: OrderedDict, debug=False):
     # First, try the original order
     if execute_and_test_code(code_blocks):
         return code_blocks
@@ -246,9 +246,54 @@ def find_valid_blocks(code_blocks: OrderedDict, debug=False):
         print("ERROR - No valid sequence of code blocks found.")
     return None
 
+def get_one_off_blocks(cb: OrderedDict, b_to_remove):
+    return OrderedDict((k, v) for k, v in cb.items() if k != b_to_remove)
+
+def one_off_permutations(code_blocks: OrderedDict, debug=False):
+    # Trying permutations with one code block removed
+    for block_to_remove in code_blocks.keys():
+        reduced_blocks = get_one_off_blocks(code_blocks, block_to_remove)
+        for block in itertools.permutations(reduced_blocks.keys()):
+            new_blocks = OrderedDict((x, reduced_blocks[x]) for x in block)
+            if execute_and_test_code(new_blocks):
+                if debug:
+                    print(f"Found valid permutation w/o block: {block_to_remove}")
+                return new_blocks
+    return None
+
+def find_valid_blocks(code_blocks: OrderedDict, debug=False):
+    # First, try the original order
+    if execute_and_test_code(code_blocks):
+        return code_blocks
+    
+    # If original order doesn't work then check all permutations
+    for block in itertools.permutations(code_blocks.keys()):
+        new_blocks = OrderedDict((line, None) for line in block)
+        if new_blocks == code_blocks:  # Skips original
+            continue
+        if execute_and_test_code(new_blocks):
+            return new_blocks
+        
+    # If full Perms don't work - try Perms with one code block removed
+    one_off_blocks = one_off_permutations(code_blocks, debug=debug)
+    if one_off_blocks is not None:
+        return one_off_blocks
+    
+    if debug:
+        print("ERROR - No valid sequence of code blocks found.")
+    return None
+
+def get_valid_code_prev(code_blocks: OrderedDict):
+    try:
+        blocks = find_valid_blocks_prev(code_blocks)
+        code_block = '\n'.join(blocks.keys())
+    except AttributeError:
+        code_block = '\n'.join(code_blocks.keys())
+    return code_block
+
 def get_valid_code(code_blocks: OrderedDict):
     try:
-        blocks = find_valid_blocks(code_blocks)
+        blocks = find_valid_blocks(code_blocks, debug=True)
         code_block = '\n'.join(blocks.keys())
     except AttributeError:
         code_block = '\n'.join(code_blocks.keys())
@@ -264,6 +309,23 @@ def try_agent_outputs(try_output: str, code_block: str, code_blocks: OrderedDict
         if len(new_block) > len(code_block):
             return new_block
     return code_block
+
+def extract_function_name(input_str: str) -> str:
+    match = re.search(r'def (\w+)\(', input_str)
+    if match:
+        return match.group(1)
+    else:
+        return "No explicit function name found."
+
+def python_to_text(file_path: str) -> str:    
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        with open(file_path, 'r') as file:
+            content = file.read()
+            return str(content)
+    elif os.path.exists(file_path):
+        raise IsADirectoryError(f"A directory with the same name as the file exists: {file_path}")
+    else:
+        raise FileNotFoundError(f"The file does not exist: {file_path}")
 
 def extract_code_from_response(response: list, try_output = None) -> str:
     response_str = "\n".join(response)
@@ -295,7 +357,7 @@ def extract_code_from_response(response: list, try_output = None) -> str:
             if code:
                 code_blocks[code] = None
 
-    code_block = get_valid_code(code_blocks)
+    code_block = get_valid_code_prev(code_blocks)
     if try_output is not None:
         code_block = try_agent_outputs(try_output, code_block, code_blocks)
 
@@ -303,5 +365,58 @@ def extract_code_from_response(response: list, try_output = None) -> str:
     # print(f"Total number of code blocks: {len(code_blocks)}")
 
     code_text = process_code_line(code_block)
+
+    return code_text
+
+def remove_code_markers(code_text: str) -> str:
+    code_text = code_text.replace("```python\n", "")
+    code_text = code_text.replace("```", "")
+    agent_stop_text = "Agent stopped due to iteration limit or time limit."
+    code_text = code_text.replace(agent_stop_text, "")
+    return code_text
+
+def remove_markers_from_blocks(code_blocks: OrderedDict):
+    new_blocks = OrderedDict()
+    for k, v in code_blocks.items():
+        clean_code = remove_code_markers(k)
+        new_blocks[clean_code] = None
+    return new_blocks
+
+def extract_code_from_response_convo(response: list, try_output = None) -> str:
+    response_str = "\n".join(response)
+
+    code_blocks = OrderedDict()
+    inside_code_block = False
+    code = ""
+
+    for line in response_str.split("\n"):
+        # Check for multi-line code block
+        if "Action: Python_REPL" in line or "Action Input:" in line:
+            inside_code_block = True
+            if "Action Input:" in line:
+                code += line.split("Action Input:", 1)[1].strip() + "\n"
+        elif "Observation:" in line and inside_code_block:
+            inside_code_block = False
+            if code:
+                code_blocks[code] = None
+                code += "\n"  # add newline to the end of each code block
+                code = ""
+        elif inside_code_block and line.strip():
+            code += line + "\n"
+
+        # Check for single-line code block
+        match = re.search(r"Action Input:\s*(.*?)\s*Observation:", line)
+        if match:
+            code = match.group(1)
+            if code:
+                code_blocks[code] = None
+                
+    code_blocks = remove_markers_from_blocks(code_blocks)
+    code_block = get_valid_code(code_blocks)
+    if try_output is not None:
+        code_block = try_agent_outputs(try_output, code_block, code_blocks)
+
+    code_text = process_code_line(code_block)
+    # code_text = remove_code_markers(code_text)
 
     return code_text

@@ -6,7 +6,10 @@ from test_files.responses import responses_1, responses_2, code_1, code_2, code_
 
 class AgentTestCase(unittest.TestCase):
     def setUp(self):
-        self.agent_server = AgentServer(use_local=False, template="")
+        self.agent_server = AgentServer(llm_mode='davinci', agent_mode='text-code', template="")
+
+    def convo_setUp(self):
+        self.agent_server = AgentServer(llm_mode='davinci', agent_mode='convo-code', template="")
         
     def test_agent_responses(self):
         responses_3 = self.agent_server.get_response_list("agent_responses/responses-16036891.txt")

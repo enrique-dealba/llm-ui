@@ -3,32 +3,43 @@ import config
 import logging
 import os
 import random
+import re
+import langchain
 
 from typing import List, Dict, Any, Optional, Union
 from apikeys import open_ai_key, hf_key, serpapi_key
-from prompts import server_template, agent_template #, db_template
+from prompts import server_template, agent_template, template_with_history
 from agent_utils import get_agent_thoughts, extract_code_from_response
 from test_files.responses import responses_1, responses_2, code_1, code_2, code_3, code_4
 
 from agent_utils import save_code_to_file, code_equivalence
+from agent_utils import extract_function_name, python_to_text
+from agent_utils import extract_code_from_response_convo
+from tools.custom_tools import ask_user_tool
 
 from flask import Flask, request, jsonify, render_template
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain import PromptTemplate, LLMChain
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.llms import OpenAI, HuggingFacePipeline
+from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import HuggingFaceInstructEmbeddings
 from langchain.document_loaders import TextLoader
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferMemory, ConversationBufferWindowMemory
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 from InstructorEmbedding import INSTRUCTOR
 
 ## AGENT IMPORTS ##
 from langchain.agents import load_tools, initialize_agent
+from langchain.agents import Tool, AgentExecutor, LLMSingleActionAgent, AgentOutputParser
+from langchain.tools import BaseTool
+from langchain.schema import AgentAction, AgentFinish
+from langchain.prompts import StringPromptTemplate
+
 from langchain.agents import (
     AgentType,
-)  # We will be using the type: ZERO_SHOT_REACT_DESCRIPTION which is standard
+)
 
 os.environ['OPENAI_API_KEY'] = open_ai_key
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = hf_key
@@ -47,13 +58,61 @@ class ListHandler(logging.Handler): # Inherits from logging.Handler
         """Keeps track of verbose outputs from agent LLM in logs."""
         self.log.append(self.format(record))
 
+class CustomPromptTemplate(StringPromptTemplate):
+    template: str
+    # The list of available tools
+    tools: List[Tool]
+    agent_thoughts: list
+    
+    def format(self, **kwargs) -> str:
+        # Get the intermediate steps (AgentAction, Observation tuples)
+        # Formats them in a particular way
+        intermediate_steps = kwargs.pop("intermediate_steps")
+        thoughts = ""
+        for action, observation in intermediate_steps:
+            self.agent_thoughts += [str(action.log) + "\nObservation: " + str(observation)]
+            thoughts += action.log
+            thoughts += f"\nObservation: {observation}\nThought: "
+        
+        kwargs["agent_scratchpad"] = thoughts
+        kwargs["tools"] = "\n".join([f"{tool.name}: {tool.description}" for tool in self.tools])
+        kwargs["tool_names"] = ", ".join([tool.name for tool in self.tools])
+        return self.template.format(**kwargs)
+
+class CustomOutputParser(AgentOutputParser):
+    
+    def parse(self, llm_output: str) -> Union[AgentAction, AgentFinish]:
+        # Checks if agent should finish
+        pre_final = "Final Answer:" # deleted the ':'
+        post_final = "Final Answer"
+        if pre_final in llm_output:
+            return AgentFinish(
+                return_values={"output": llm_output.split(pre_final)[-1].strip()},
+                log=llm_output,
+            )
+        elif post_final in llm_output:
+            return AgentFinish(
+                return_values={"output": llm_output.split(post_final)[-1].strip()},
+                log=llm_output,
+            )
+        # Parse out the action and action input
+        regex = r"Action\s*\d*\s*:(.*?)\nAction\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+        match = re.search(regex, llm_output, re.DOTALL)
+        if not match:
+            raise ValueError(f"Could not parse LLM output: `{llm_output}`")
+        action = match.group(1).strip()
+        action_input = match.group(2)
+
+        return AgentAction(tool=action, tool_input=action_input.strip(" ").strip('"'), log=llm_output)
+
 handler = ListHandler()
 logging.getLogger().addHandler(handler)
 
 class AgentServer:
     """LLM Agent Flask server with Agent operations."""
 
-    def __init__(self, use_local: bool=True, template: str="", init_model: bool=True):
+    def __init__(self, llm_mode: str='davinci', agent_mode: str='text-code',
+                 template: str=""):
         self.app = app 
         self.tokenizer = None
         self.model = None
@@ -61,47 +120,116 @@ class AgentServer:
         self.embedding = None
         self.memory = None
         self.qa_chain = None
-        self.tools = None
-        self.agent = None
-        self.template = template
-        self.persist_directory = 'docs/chroma/'
-        if init_model:
-            self.initialize_model(use_local)
 
-    def set_tools(self, use_default_tools: bool):
+        ## Agent LLM
+        self.agent_mode = agent_mode
+        self.tools = None
+        self.output_parser = CustomOutputParser()
+        self.max_iterations = 8
+        self.agent = None
+        self.agent_thoughts = []
+        self.agent_history = None
+        self.agent_executor = None
+        self.func_config = None
+        self.id = random.randint(1e5, 1e6-1) # agent id
+
+        # self.template = template
+        self.persist_directory = 'docs/chroma/'
+        self.initialize_model(llm_mode)
+
+    def get_tools(self, use_code_tools: bool, use_default_tools: bool,
+                  use_custom_tools: bool):
         """Setup of tools for agent LLM."""
         assert self.llm is not None
+        tools = []
 
-        if use_default_tools:
-            self.tools = load_tools(["wikipedia",
+        if use_code_tools:
+            base_tools = load_tools(["python_repl",
+                                     "terminal"])
+        elif use_default_tools:
+            base_tools = load_tools(["wikipedia",
                                      "serpapi",
                                      "python_repl",
                                      "terminal"],
                                      llm=self.llm)
             
+        for tool in base_tools:
+            new_tool = Tool(
+                name = str(tool.name),
+                func=tool.run,
+                description=tool.description
+                )
+            if new_tool not in tools:
+                tools += [new_tool]
+
+        if use_custom_tools:
+            tools += [ask_user_tool]
+
+        return tools
+            
     def init_agent(self):
         """Initializes LLM agent."""
         if self.tools is None:
-            self.set_tools(use_default_tools=True)
-        
+            self.tools = self.get_tools(use_code_tools=True,
+                                        use_default_tools=False,
+                                        use_custom_tools=True)
+            
         self.agent = initialize_agent(
             tools=self.tools,
             llm=self.llm,
             agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            max_iterations=self.max_iterations,
             verbose=True)
         
         if self.tools is None or self.agent is None:
             return jsonify({'error': 'Agent or tools not initialized'}), 400
+        
+    def init_convo_agent(self):
+        """Initializes LLM agent for conversational mode (input schema)."""
+        if self.tools is None:
+            self.tools = self.get_tools(use_code_tools=True,
+                                        use_default_tools=False,
+                                        use_custom_tools=True)
+        
+        self.agent_history = CustomPromptTemplate(
+            template=template_with_history,
+            tools=self.tools,
+            agent_thoughts=self.agent_thoughts,
+            input_variables=["input", "intermediate_steps", "history"]
+            )
+        llm_chain = LLMChain(llm=self.llm, prompt=self.agent_history)
+        tool_names = [tool.name for tool in self.tools]
 
-    def initialize_model(self, use_local: bool=True):
+        self.agent = LLMSingleActionAgent(
+            llm_chain=llm_chain,
+            output_parser=self.output_parser,
+            stop=["\nObservation:"],
+            allowed_tools=tool_names
+            )
+        
+        num_memories = 3 # can play around with this (maybe 2, 3, 4, 5, etc)
+        self.memory = ConversationBufferWindowMemory(k=num_memories)
+        self.agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=self.agent,
+            tools=self.tools,
+            verbose=True,
+            memory=self.memory,
+            max_iterations=self.max_iterations
+            )
+        
+        if self.agent_executor is None or self.agent is None:
+            return jsonify({'error': 'Agent or AgentExecutor not initialized'}), 400
+
+    def initialize_model(self, llm_mode: str):
         """Initialize LLM either locally or from OpenAI (text-davinci-003)."""
-        if use_local:
+        if llm_mode == 'local':
             directory_path = config.MODEL_DIRECTORY_PATH
             self.tokenizer = AutoTokenizer.from_pretrained(directory_path)
             self.model = AutoModelForCausalLM.from_pretrained(directory_path)
-        else:
-            # low temp = less "creative"/random (more strict)
-            # TODO: think about this more -- currently at 0.1
+        elif llm_mode == 'chatgpt':
+            self.llm = ChatOpenAI(model_name="gpt-3.5-turbo",
+                                  temperature=config.TEMPERATURE)
+        elif llm_mode == 'davinci':
             self.llm = OpenAI(temperature=config.TEMPERATURE) # (text-davinci-003)
 
         if self.model:
@@ -166,30 +294,137 @@ class AgentServer:
             print()
             print("="*50)
             print("SUCCESS: Agent tests passed!")
+
+    def validate_convo_agent(self):
+        assert self.agent_executor is not None
+        assert self.memory is not None
+        assert self.agent_history is not None
+        assert self.agent is not None
+        assert self.tools is not None
+
+    def get_function_config(self, prompt: str,
+                            py_file: str,
+                            agent_dir: str = 'agent_funcs'):
+        if not os.path.exists(agent_dir) or not os.path.isdir(agent_dir):
+            raise FileNotFoundError(f"The directory {agent_dir} does not exist.")
+        assert os.path.exists(agent_dir)
+        file_path = agent_dir + "/" + py_file + ".py"
+        assert os.path.isfile(file_path)
+
+        task_func = python_to_text(file_path) # converts .py to str
+        func_name = extract_function_name(task_func)
+
+        # TODO: Avoid this kind of hardcoding
+        func_schema = """{
+        "value1": int OR str,
+        "value2": int OR str,
+        "value3": int OR str
+        }
+        """
+
+        return {
+            'prompt': prompt,
+            'py_file': py_file,
+            'agent_dir': agent_dir,
+            'task_func': task_func,
+            'func_name': func_name,
+            'func_schema': func_schema
+            }
     
-    def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
-        """Tasks LLM agent to process a given prompt/task."""
-        if not prompt:
-            return jsonify({'error': 'No task provided'}), 400
+    def reset_prompt(self, prompt):
+        self.func_config['prompt'] = prompt
+
+    def reset_thoughts(self):
+        self.agent_thoughts = []
+
+    def get_agent_task(self, prompt: str) -> str:
+        if self.func_config is None:
+            self.func_config = self.get_function_config(prompt,
+                                                        py_file='task_func',
+                                                        agent_dir='agent_funcs'
+                                                        )
+        assert self.func_config is not None
         
+        if self.func_config['prompt'] is not prompt:
+            # This means a new user prompt has been sent
+            print()
+            print("&"*50)
+            print("&"*50)
+            print("RESETTING PROMPT and THOUGHTS")
+            self.reset_prompt(prompt)
+            self.reset_thoughts()
+
+        agent_task = f"""Given the following Python function:
+
+        {self.func_config['task_func']}
+
+        And using the following input schema for the Python function: {self.func_config['func_schema']}, take the following user task:
+
+        {self.func_config['prompt']}, and extract the relevant values into the input schema. Make sure to convert the user's input to match the input schema.
+
+        Write Python code to set the input variables, import the Python function {self.func_config['func_name']} from {self.func_config['py_file']}.py inside the directory: {self.func_config['agent_dir']} (from {self.func_config['agent_dir']}.{self.func_config['py_file']} import {self.func_config['func_name']}), and input into the function.
+
+        If the user task is NOT specific enough, please ask the user in natural language to provide more information.
+
+        For example, if the user tasks you to do something but doesn't give specific values, you MUST ask for them explicitly - give your Final Answer asking for more info.
+        Do NOT set or come up with the input variables yourself. You MUST ask the user for more information and extract the relevant inputs from the user.
+        """
+        return agent_task
+    
+    def convo_code(self, prompt: str) -> Union[tuple, jsonify]:
+        if self.agent_executor is None:
+            self.init_convo_agent()
+
+        self.validate_convo_agent()
+        agent_task = self.get_agent_task(prompt)
+        response = self.agent_executor.run(agent_task)
+
+        responses = self.agent_history.agent_thoughts
+        agent_responses = get_agent_thoughts(responses)
+
+        code_block = extract_code_from_response_convo(agent_responses,
+                                                      #try_output=response,
+                                                      )
+        
+        responses += [response]
+        responses += [f'Extracted code:\n{code_block}']
+
+        if code_block is not None:
+            filename = 'convo_code_' + str(self.id)
+            save_code_to_file(code=code_block, filename=filename, dir_name='agent_dir')
+
+        return jsonify({'response': responses})
+    
+    def text_code(self, prompt: str) -> Union[tuple, jsonify]:
         self.init_agent()
         final_answer = self.agent.run(prompt)
 
         # Agent Logs
         logs = handler.log # gets verbose logs from agent LLM
         cleaned_logs = get_agent_thoughts(logs) # cleans logs
-        # self.save_response(cleaned_logs) # UNCOMMENT to save logs for debugging
+        self.save_response(cleaned_logs) # save logs for later debugging
 
         response = cleaned_logs + [final_answer]
+        ## TODO: not sure if logic for stopping agent makes sense -- maybe we skip this
         if final_answer == "Agent stopped due to iteration limit or time limit.":
             return jsonify({'response': response})
         
         code_block = extract_code_from_response(cleaned_logs)
         response += [f'Extracted code:\n{code_block}']
         if code_block is not None:
-            save_code_to_file(code=code_block, filename='agent_code', dir_name='agent_dir')
+            filename = 'text_code_' + str(self.id)
+            save_code_to_file(code=code_block, filename=filename, dir_name='agent_dir')
 
         return jsonify({'response': response})
+    
+    def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
+        """Tasks LLM agent to process a given prompt/task."""
+        if not prompt:
+            return jsonify({'error': 'No task provided'}), 400
+        
+        if self.agent_mode == 'text-code':
+            return self.text_code(prompt)
+        return self.convo_code(prompt)
 
     def error_handler(self, e: Exception) -> jsonify:
         """Handle errors during request processing."""
