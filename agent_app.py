@@ -29,8 +29,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the Flask server")
 	# Usage: `--llm local` or `--llm davinci` etc
     parser.add_argument('--llm', choices=['local', 'chatgpt', 'davinci'], help='Choose an LLM for Agent')
-	# Usage: `--mode text-code` or `--mode convo-code` etc
-    parser.add_argument('--mode', choices=['text-code', 'convo-code'], help='Choose an Agent mode')
+	# Usage: `--mode text-code`, `--mode convo-code`, etc
+    parser.add_argument('--mode', choices=['text-code', 'convo-code', 'json-agent'], help='Choose an Agent mode')
     return parser
 
 if __name__ == "__main__":

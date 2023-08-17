@@ -1,10 +1,11 @@
 import argparse
 import config
+import json
 import logging
 import os
 import random
 import re
-import langchain
+# import langchain
 
 from typing import List, Dict, Any, Optional, Union
 from apikeys import open_ai_key, hf_key, serpapi_key, langsmith_key
@@ -16,6 +17,8 @@ from agent_utils import save_code_to_file, code_equivalence
 from agent_utils import extract_function_name, python_to_text
 from agent_utils import extract_code_from_response_convo
 from tools.custom_tools import ask_user_tool
+from objective_utils import get_objective, save_json, extract_json
+from agent_files.objectives import CatalogMaintenanceObjective, PeriodicRevisitObjective
 
 from flask import Flask, request, jsonify, render_template
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -36,10 +39,12 @@ from langchain.agents import Tool, AgentExecutor, LLMSingleActionAgent, AgentOut
 from langchain.tools import BaseTool
 from langchain.schema import AgentAction, AgentFinish
 from langchain.prompts import StringPromptTemplate
-
-from langchain.agents import (
-    AgentType,
-)
+from langchain.agents.agent_toolkits import JsonToolkit
+from langchain.tools.json.tool import JsonSpec
+from langchain.agents import create_json_agent
+from langchain.agents import AgentType
+from langchain.schema.output_parser import OutputParserException
+from langchain.output_parsers import PydanticOutputParser
 
 os.environ['OPENAI_API_KEY'] = open_ai_key
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = hf_key
@@ -138,6 +143,10 @@ class AgentServer:
         self.func_config = None
         self.id = random.randint(1e5, 1e6-1) # agent id
 
+        ## Objectives LLM
+        self.objective = None
+        self.json_agent_executor = None
+
         # self.template = template
         self.persist_directory = 'docs/chroma/'
         self.initialize_model(llm_mode)
@@ -224,7 +233,18 @@ class AgentServer:
         
         if self.agent_executor is None or self.agent is None:
             return jsonify({'error': 'Agent or AgentExecutor not initialized'}), 400
+        
+    def init_json_agent(self):
+        """Initializes JSON agent for outputting JSON objects based on schemas."""
+        json_spec = JsonSpec(dict_=self.objective.data, max_value_length=4000)
+        json_toolkit = JsonToolkit(spec=json_spec)
 
+        self.json_agent_executor = create_json_agent(
+            llm=self.llm,
+            toolkit=json_toolkit,
+            verbose=True
+            )
+        
     def initialize_model(self, llm_mode: str):
         """Initialize LLM either locally or from OpenAI (text-davinci-003)."""
         if llm_mode == 'local':
@@ -376,6 +396,21 @@ class AgentServer:
         """
         return agent_task
     
+    def get_json_task(self, prompt: str) -> str:
+        # JSON prompt for JSON agent. Extracts relevant fields from Objective.
+        json_prompt = f'''Given the following user task: `{prompt}`, Examine the following JSON schema:
+
+        {self.objective.schema_short}
+
+        Create a JSON object that represents an instance of the `{self.objective.name}` class using information from the user task. Here is an example for a JSON that adheres to the schema:
+
+        {self.objective.examples}
+
+        Create a new JSON object and include every parameter from the class if it is required. Required: {self.objective.required} from the JSON schema.
+        '''
+
+        return json_prompt
+    
     def convo_code(self, prompt: str) -> Union[tuple, jsonify]:
         if self.agent_executor is None:
             self.init_convo_agent()
@@ -422,6 +457,52 @@ class AgentServer:
 
         return jsonify({'response': response})
     
+    def validate_json(self, json_text: str) -> bool:
+        pydantic_class = globals()[self.objective.name]
+        parser = PydanticOutputParser(pydantic_object=pydantic_class)
+
+        try:
+            parsed_response = parser.parse(json_text)
+        except OutputParserException as e:
+            print(f"Failed to parse {self.objective.name}: {str(e)}")
+            parsed_response = None
+
+        return parsed_response is not None
+    
+    def json_agent(self, prompt: str) -> Union[tuple, jsonify]:
+        responses = []
+
+        if self.objective is None:
+            self.objective, confidence = get_objective(prompt)
+            obj_response = ""
+            # Shows confidence if less than 99.9% confident as a metric
+            if 100 - confidence > 0.1:
+                obj_response = (f"Objective extracted: {self.objective.obj_name} "
+                                f"with confidence: {confidence:.2f}%")
+            else:
+                obj_response = f"Objective extracted: {self.objective.obj_name}"
+            responses += [obj_response]
+
+        assert self.objective is not None
+
+        self.init_json_agent()
+
+        assert self.json_agent_executor is not None
+
+        json_task = self.get_json_task(prompt)
+        response = self.json_agent_executor.run(json_task)
+        ## TODO: add agent thoughts for responses (helps with back-and-forth)
+        json_text = extract_json(response)
+        if self.validate_json(json_text):
+            responses += [f'Extracted valid JSON:\n{json_text}']
+        else:
+            responses += [f'Extracted invalid JSON:\n{json_text}']
+
+        json_file = json.loads(json_text)
+        save_json(json_file)
+
+        return jsonify({'response': responses})
+    
     def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
         """Tasks LLM agent to process a given prompt/task."""
         if not prompt:
@@ -429,7 +510,12 @@ class AgentServer:
         
         if self.agent_mode == 'text-code':
             return self.text_code(prompt)
-        return self.convo_code(prompt)
+        elif self.agent_mode == 'convo-code':
+            return self.convo_code(prompt)
+        elif self.agent_mode == 'json-agent':
+            return self.json_agent(prompt)
+        
+        return self.text_code(prompt) # default
 
     def error_handler(self, e: Exception) -> jsonify:
         """Handle errors during request processing."""

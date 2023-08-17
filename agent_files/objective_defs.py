@@ -51,6 +51,43 @@ CMO_schema = '''{
 }
 '''
 
+CMO_schema_short = '''{
+  "title": "CatalogMaintenanceObjective",
+  "type": "object",
+  "properties": {
+    "sensor_name": { "type": "string" },
+    "data_mode": { "type": "string" },
+    "classification_marking": { "type": "string" },
+    "patience_minutes": { "type": "integer" },
+    "end_time_offset_minutes": { "type": "integer" },
+    "objective_name": { "type": "string" },
+    "objective_start_time": { "type": "string", "format": "date-time" },
+    "objective_end_time": { "type": "string", "format": "date-time" },
+    "priority": { "type": "integer" }
+  },
+  "required": ["sensor_name", "data_mode", "classification_marking"]
+}
+'''
+
+CMO_required = "sensor_name, data_mode, classification_marking"
+
+CMO_data = {
+    "title": "CatalogMaintenanceObjective",
+    "type": "object",
+    "properties": {
+    "sensor_name": { "type": "string" },
+    "data_mode": { "type": "string" },
+    "classification_marking": { "type": "string" },
+    "patience_minutes": { "type": "integer" },
+    "end_time_offset_minutes": { "type": "integer" },
+    "objective_name": { "type": "string" },
+    "objective_start_time": { "type": "string", "format": "date-time" },
+    "objective_end_time": { "type": "string", "format": "date-time" },
+    "priority": { "type": "integer" }
+    },
+    "required": ["sensor_name", "data_mode", "classification_marking"]
+}
+
 PRO_schema = '''{
   "title": "PeriodicRevisitObjective",
   "type": "object",
@@ -107,6 +144,45 @@ PRO_schema = '''{
   "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
 }
 '''
+
+PRO_schema_short = '''{
+  "title": "PeriodicRevisitObjective",
+  "type": "object",
+  "properties": {
+    "target_id": { "type": "integer" },
+    "sensor_name": { "type": "string" },
+    "data_mode": { "type": "string" },
+    "classification_marking": { "type": "string" },
+    "revisits_per_hour": { "type": "integer" },
+    "hours_to_plan": { "type": "integer" },
+    "objective_name": { "type": "string" },
+    "objective_start_time": { "type": "string", "format": "date-time" },
+    "objective_end_time": { "type": "string", "format": "date-time" },
+    "priority": { "type": "integer" }
+  },
+  "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
+}
+'''
+
+PRO_required = "target_id, sensor_name, data_mode, classification_marking"
+
+PRO_data = {
+    "title": "PeriodicRevisitObjective",
+    "type": "object",
+    "properties": {
+    "target_id": { "type": "integer" },
+    "sensor_name": { "type": "string" },
+    "data_mode": { "type": "string" },
+    "classification_marking": { "type": "string" },
+    "revisits_per_hour": { "type": "integer" },
+    "hours_to_plan": { "type": "integer" },
+    "objective_name": { "type": "string" },
+    "objective_start_time": { "type": "string", "format": "date-time" },
+    "objective_end_time": { "type": "string", "format": "date-time" },
+    "priority": { "type": "integer" }
+    },
+    "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
+}
 
 CMO_example_1 = '''{
         "objective_def_name": "CatalogMaintenanceObjective",

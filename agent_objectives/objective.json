@@ -1,0 +1,10 @@
+{
+    "objective_def_name": "PeriodicRevisitObjective",
+    "target_id": 12345,
+    "sensor_name": "RME08",
+    "revisits_per_hour": 2,
+    "data_mode": "TEST",
+    "classification_marking": "",
+    "hours_to_plan": 16,
+    "objective_name": "Periodic Revisit Objective"
+}
