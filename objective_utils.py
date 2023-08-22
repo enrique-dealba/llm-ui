@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import torch
 import numpy as np
 
 from sentence_transformers import SentenceTransformer
@@ -16,20 +17,28 @@ def get_embedding_fn(model_name: str = 'thenlper/gte-small'):
     embedding_fn = lambda x: model.encode(x)
     return embedding_fn
 
-def calculate_confidence(cosine_similarities: List[float]):
+def calculate_confidence(distribution: List[float]):
     """
-    Takes an array of cosine similarities as input and calculates a confidence 
-    percentage based on the distribtion of cosine similarities.
+    Calculates the confidence of a given distribution based on entropy. The 
+    function normalizes the distribution, computes the entropy, and then 
+    normalizes it considering the maximum entropy for the given length. It's 
+    useful for assessing the uncertainty or randomness associated with a 
+    particular distribution, returning the confidence level as a percentage.
     """
-    max_similarity = np.max(cosine_similarities)
-    mean = np.mean(cosine_similarities)
-    std = np.std(cosine_similarities)
-
-    # Compute the confidence percentage
-    confidence_percentage = (max_similarity - mean) / std
-    confidence_percentage = max(0, min(1, confidence_percentage)) * 100
-
-    return confidence_percentage
+    if not distribution:
+        return 0
+        
+    if str(type(distribution[0])) == "<class 'torch.Tensor'>":
+        new_dist = [sim.item() for sim in distribution]
+        distribution = new_dist
+    # Normalizes the distribution so that it sums to 1
+    distribution = np.array(distribution) / sum(distribution)
+    # Calculates entropy
+    entropy = -np.sum(distribution * np.log2(distribution))
+    # Normalizes entropy to the range [0, 1], considering max entropy for given length
+    max_entropy = np.log2(len(distribution))
+    confidence = 1 - (entropy / max_entropy)
+    return confidence * 100
 
 def get_objective(task: str, embedding_fn = None):
     assert kv_objectives is not None

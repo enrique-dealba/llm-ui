@@ -19,6 +19,7 @@ from agent_utils import extract_code_from_response_convo
 from tools.custom_tools import ask_user_tool
 from objective_utils import get_objective, save_json, extract_json
 from agent_files.objectives import CatalogMaintenanceObjective, PeriodicRevisitObjective
+from agent_files.objectives import SearchObjective, ScheduleFillerObjective, QualityWindowObjective
 
 from flask import Flask, request, jsonify, render_template
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -400,7 +401,7 @@ class AgentServer:
         # JSON prompt for JSON agent. Extracts relevant fields from Objective.
         json_prompt = f'''Given the following user task: `{prompt}`, Examine the following JSON schema:
 
-        {self.objective.schema_short}
+        {self.objective.schema}
 
         Create a JSON object that represents an instance of the `{self.objective.name}` class using information from the user task. Here is an example for a JSON that adheres to the schema:
 
@@ -477,8 +478,8 @@ class AgentServer:
             obj_response = ""
             # Shows confidence if less than 99.9% confident as a metric
             if 100 - confidence > 0.1:
-                obj_response = (f"Objective extracted: {self.objective.obj_name} "
-                                f"with confidence: {confidence:.2f}%")
+                obj_response = (f"Objective extracted: {self.objective.obj_name}. "
+                                f"Confidence: {confidence:.2f}%")
             else:
                 obj_response = f"Objective extracted: {self.objective.obj_name}"
             responses += [obj_response]
