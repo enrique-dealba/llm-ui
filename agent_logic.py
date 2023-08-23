@@ -5,7 +5,6 @@ import logging
 import os
 import random
 import re
-# import langchain
 
 from typing import List, Dict, Any, Optional, Union
 from apikeys import open_ai_key, hf_key, serpapi_key, langsmith_key
@@ -430,11 +429,13 @@ class AgentServer:
         responses += [response]
         responses += [f'Extracted code:\n{code_block}']
 
+        valid_code = False
         if code_block is not None:
+            valid_code = True
             filename = 'convo_code_' + str(self.id)
             save_code_to_file(code=code_block, filename=filename, dir_name='agent_dir')
 
-        return jsonify({'response': responses})
+        return jsonify({'response': responses}), valid_code
     
     def text_code(self, prompt: str) -> Union[tuple, jsonify]:
         self.init_agent()
@@ -452,11 +453,13 @@ class AgentServer:
         
         code_block = extract_code_from_response(cleaned_logs)
         response += [f'Extracted code:\n{code_block}']
+        valid_code = False
         if code_block is not None:
+            valid_code = True
             filename = 'text_code_' + str(self.id)
             save_code_to_file(code=code_block, filename=filename, dir_name='agent_dir')
 
-        return jsonify({'response': response})
+        return jsonify({'response': response}), valid_code
     
     def validate_json(self, json_text: str) -> bool:
         pydantic_class = globals()[self.objective.name]
@@ -493,16 +496,63 @@ class AgentServer:
         json_task = self.get_json_task(prompt)
         response = self.json_agent_executor.run(json_task)
         ## TODO: add agent thoughts for responses (helps with back-and-forth)
-        json_text = extract_json(response)
-        if self.validate_json(json_text):
+        try:
+            json_text = extract_json(response)
+        except ValueError as e:
+            print(f"JSON object error: {e}")
+            json_text = None
+
+        valid_json = False
+        if json_text is not None and self.validate_json(json_text):
             responses += [f'Extracted valid JSON:\n{json_text}']
+            valid_json = True
         else:
             responses += [f'Extracted invalid JSON:\n{json_text}']
 
         json_file = json.loads(json_text)
         save_json(json_file)
 
-        return jsonify({'response': responses})
+        return jsonify({'response': responses}), valid_json
+    
+    def test_json(self, prompt: str):
+        responses = []
+
+        if self.objective is None:
+            self.objective, confidence = get_objective(prompt)
+            obj_response = ""
+            # Shows confidence if less than 99.9% confident as a metric
+            if 100 - confidence > 0.1:
+                obj_response = (f"Objective extracted: {self.objective.obj_name}. "
+                                f"Confidence: {confidence:.2f}%")
+            else:
+                obj_response = f"Objective extracted: {self.objective.obj_name}"
+            responses += [obj_response]
+
+        assert self.objective is not None
+
+        self.init_json_agent()
+
+        assert self.json_agent_executor is not None
+
+        json_task = self.get_json_task(prompt)
+        response = self.json_agent_executor.run(json_task)
+        try:
+            json_text = extract_json(response)
+        except ValueError as e:
+            print(f"JSON object error: {e}")
+            json_text = None
+
+        valid_json = False
+        if json_text is not None and self.validate_json(json_text):
+            responses += [f'Extracted valid JSON:\n{json_text}']
+            valid_json = True
+        else:
+            responses += [f'Extracted invalid JSON:\n{json_text}']
+
+        json_file = json.loads(json_text)
+        save_json(json_file)
+
+        return responses, valid_json
     
     def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
         """Tasks LLM agent to process a given prompt/task."""

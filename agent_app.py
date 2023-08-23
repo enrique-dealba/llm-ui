@@ -20,7 +20,8 @@ def chat() -> jsonify:
     try:
         prompt = request.json['prompt']
 
-        return server.task_agent(prompt)
+        response, _ = server.task_agent(prompt)
+        return response
     except Exception as e:
         return server.error_handler(e)
 

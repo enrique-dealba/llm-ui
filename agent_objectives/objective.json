@@ -1,10 +1,14 @@
 {
-    "objective_def_name": "PeriodicRevisitObjective",
-    "target_id": 12345,
-    "sensor_name": "RME08",
-    "revisits_per_hour": 2,
+    "objective_def_name": "SearchObjective",
+    "objective_name": "Search Objective",
+    "target_id": 56789,
+    "sensor_name": "RME01",
+    "initial_offset": 100,
+    "final_offset": 100,
+    "objective_start_time": "2023-08-21T18:47:19.059212",
+    "objective_end_time": "2023-08-21T18:57:19.059284",
     "data_mode": "TEST",
     "classification_marking": "U",
-    "objective_name": "Periodic Revisit Objective",
-    "hours_to_plan": 16
+    "frame_overlap_percentage": 35,
+    "end_time_offset_minutes": 20
 }
