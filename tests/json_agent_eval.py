@@ -29,7 +29,7 @@ CMO_list = [
 ]
 
 PRO_list = [
-    "Track object 12345 with sensor RME08, revisiting twice per hour for the next 16 hours",
+    "Track object 12345 with sensor RME08, revisiting twice per hour for the next 16 hours, starting now",
 ]
 
 JSON_EVALS = {
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         for task in task_list:
             response, valid = server.test_json(task)
             if valid:
-                logger["Correct"].append(f"{obj}: {task}")
+                logger["Correct"].append(f"{obj}: {task} -- Agent response: {response}")
                 score += 1
             else:
                 logger["Incorrect"].append(f"{obj}: {task} -- Agent response: {response}")
