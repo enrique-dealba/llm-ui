@@ -19,6 +19,7 @@ from tools.custom_tools import ask_user_tool, get_current_time_tool
 from objective_utils import get_objective, save_json, extract_json
 from agent_files.objectives import CatalogMaintenanceObjective, PeriodicRevisitObjective
 from agent_files.objectives import SearchObjective, ScheduleFillerObjective, QualityWindowObjective
+from agent_files.objectives import DATA_MODES, MARKINGS, DEFAULT_DATA_MODE, DEFAULT_MARKINGS
 
 from flask import Flask, request, jsonify, render_template
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -145,9 +146,11 @@ class AgentServer:
         self.func_config = None
         self.id = random.randint(1e5, 1e6-1) # agent id
 
-        ## Objectives LLM
+        ## Objectives LLM (json-agent)
         self.objective = None
+        self.custom_json_history = None
         self.json_agent_executor = None
+        self.prev_response = None
 
         # self.template = template
         self.persist_directory = 'docs/chroma/'
@@ -253,7 +256,7 @@ class AgentServer:
             custom_tools += [get_current_time_tool]
 
         # TODO: template_with_history might need to be tuned/optimized
-        custom_json_prompt = CustomPromptTemplate(
+        self.custom_json_history = CustomPromptTemplate(
             template=template_with_history_json,
             tools=custom_tools,
             prefix=JSON_PREFIX,
@@ -262,10 +265,10 @@ class AgentServer:
             input_variables=["input", "intermediate_steps", "history"]
         )
 
-        llm_chain = LLMChain(llm=self.llm, prompt=custom_json_prompt)
+        llm_chain = LLMChain(llm=self.llm, prompt=self.custom_json_history)
         tool_names = [t.name for t in custom_tools]
 
-        json_agent = LLMSingleActionAgent(
+        self.agent = LLMSingleActionAgent(
             llm_chain=llm_chain,
             output_parser=self.output_parser,
             stop=["\nObservation:"],
@@ -273,14 +276,15 @@ class AgentServer:
         )
 
         num_memories = 3 # can play around with this (maybe 3, 4, 5, etc)
-        memory = ConversationBufferWindowMemory(k=num_memories)
+        self.memory = ConversationBufferWindowMemory(k=num_memories)
+        self.tools = custom_tools
 
         max_iterations = 8
         self.json_agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=json_agent,
-            tools=custom_tools,
+            agent=self.agent,
+            tools=self.tools,
             verbose=True,
-            memory=memory,
+            memory=self.memory,
             max_iterations=max_iterations
         )
     
@@ -304,9 +308,17 @@ class AgentServer:
         elif llm_mode == 'chatgpt':
             self.llm = ChatOpenAI(model_name="gpt-3.5-turbo",
                                   temperature=config.TEMPERATURE)
+        elif llm_mode == 'custom_gpt':
+            # 10 2 task examples: "ft:gpt-3.5-turbo-0613:personal::7r74d09R"
+            # 50 5 task examples: ft:gpt-3.5-turbo-0613:personal::7seuSsRY
+            self.llm = ChatOpenAI(model_name="ft:gpt-3.5-turbo-0613:personal::7seuSsRY",
+                                  temperature=config.TEMPERATURE)
         elif llm_mode == 'davinci':
             self.llm = OpenAI(temperature=config.TEMPERATURE) # (text-davinci-003)
-
+        elif llm_mode == 'gpt4':
+            self.llm = ChatOpenAI(model_name="gpt-4",
+                                  temperature=config.TEMPERATURE)
+        
         if self.model:
             self.llm = self.initialize_local_model()
             logging.debug(f"LLM running on {self.model.device}")
@@ -446,7 +458,7 @@ class AgentServer:
         """
         return agent_task
     
-    def get_json_task(self, prompt: str, use_time_prompt: bool = True) -> str:
+    def get_json_task(self, prompt: str, use_time_prompt: bool = False) -> str:
         # JSON prompt for JSON agent. Extracts relevant fields from Objective.
         time_prompt = ""
         if use_time_prompt:
@@ -463,7 +475,7 @@ class AgentServer:
 
         Create a new JSON object and include every parameter from the class if it is required. Required: {self.objective.required} from the JSON schema.
         
-        {time_prompt}
+        If data_mode not specified, use the default: {DEFAULT_DATA_MODE} and if classification_marking not specified use the default: {DEFAULT_MARKINGS}.
         '''
 
         return json_prompt
@@ -530,7 +542,65 @@ class AgentServer:
 
         return parsed_response is not None
     
-    def json_agent(self, prompt: str, custom: bool = True):
+    def validate_json_agent(self):
+        assert self.json_agent_executor is not None
+        assert self.memory is not None
+        assert self.custom_json_history is not None
+        assert self.agent is not None
+        assert self.tools is not None
+
+    def get_json_responses(self, prompt, responses):
+        # This means previous issue with JSON in back-and-forth
+        if self.prev_response is not None:
+            prompt = f"Fix the following JSON: {self.prev_response} using the following additional information: " + prompt
+
+        json_task = self.get_json_task(prompt, use_time_prompt=False)
+
+        response = ""
+        try:
+            response = self.json_agent_executor.run(json_task)
+        except ValueError as e:
+            print(f"json_agent_executor error: {e}")
+
+        agent_thoughts = self.custom_json_history.agent_thoughts
+
+        if response == "":
+            responses += agent_thoughts
+            responses += ["Please provide more information regarding the fields above."]
+            self.reset_thoughts()
+            return responses, False
+                
+        try:
+            json_text = extract_json(response)
+        except ValueError as e:
+            print(f"JSON object error: {e}")
+            json_text = None
+
+        if json_text is None:
+            responses += agent_thoughts
+            responses += ["Please provide more information regarding the fields above."]
+            self.reset_thoughts()
+            return responses, False
+        
+        valid_json = False
+        if self.validate_json(json_text):
+            responses += [f'Extracted valid JSON:\n{json_text}']
+            valid_json = True
+        else:
+            self.prev_response = json_text
+            responses += [f'Extracted invalid JSON:\n{json_text}']
+            responses += ['Given the faulty fields above, give me more information to fix the JSON.']
+            self.reset_thoughts()
+            return responses, valid_json
+        
+        if valid_json:
+            json_file = json.loads(json_text)
+            save_json(json_file)
+        
+        self.prev_response = json_text # save in case of faulty "valid" JSONs
+        return responses, valid_json
+    
+    def json_agent(self, prompt: str, custom_agent: bool = True):
         responses = []
 
         if self.objective is None:
@@ -547,40 +617,22 @@ class AgentServer:
         assert self.objective is not None
 
         # TODO: at some point custom will be default and init_json_agent will be deprecated...
-        if custom:
-            self.init_custom_json_agent(use_custom_tools=True)
+        if custom_agent:
+            self.init_custom_json_agent(use_custom_tools=False)
         else:
             self.init_json_agent()
 
-        assert self.json_agent_executor is not None
+        self.validate_json_agent()
 
-        json_task = self.get_json_task(prompt, use_time_prompt=True)
-        response = self.json_agent_executor.run(json_task)
-        try:
-            json_text = extract_json(response)
-        except ValueError as e:
-            print(f"JSON object error: {e}")
-            json_text = None
+        responses, valid_json = self.get_json_responses(prompt, responses)
 
-        valid_json = False
-        if json_text is not None and self.validate_json(json_text):
-            responses += [f'Extracted valid JSON:\n{json_text}']
-            valid_json = True
-        else:
-            responses += [f'Extracted invalid JSON:\n{json_text}']
-
-        if valid_json:
-            json_file = json.loads(json_text)
-            save_json(json_file)
-
+        self.reset_thoughts()
         return jsonify({'response': responses}), valid_json
     
     def test_json(self, prompt: str, custom: bool = True):
         use_time = False
         responses = []
-        self.reset_thoughts() # empty prev thoughts for every new task
 
-        # if self.objective is None: ## SKIP this for TESTING
         self.objective, confidence = get_objective(prompt)
         obj_response = ""
         # Shows confidence if less than 99.9% confident as a metric
@@ -595,31 +647,14 @@ class AgentServer:
 
         # TODO: at some point custom will be default and init_json_agent will be deprecated...
         if custom:
-            self.init_custom_json_agent(use_custom_tools=use_time)
+            self.init_custom_json_agent(use_custom_tools=False)
         else:
             self.init_json_agent()
 
-        assert self.json_agent_executor is not None
+        self.validate_json_agent()
 
-        json_task = self.get_json_task(prompt, use_time_prompt=use_time)
-        response = self.json_agent_executor.run(json_task)
-        try:
-            json_text = extract_json(response)
-        except ValueError as e:
-            print(f"JSON object error: {e}")
-            json_text = None
-
-        valid_json = False
-        if json_text is not None and self.validate_json(json_text):
-            responses += [f'Extracted valid JSON:\n{json_text}']
-            valid_json = True
-        else:
-            responses += [f'Extracted invalid JSON:\n{json_text}']
-
-        if valid_json:
-            json_file = json.loads(json_text)
-            save_json(json_file)
-
+        responses, valid_json = self.get_json_responses(prompt, responses)
+        
         return responses, valid_json
     
     def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
@@ -632,7 +667,7 @@ class AgentServer:
         elif self.agent_mode == 'convo-code':
             return self.convo_code(prompt)
         elif self.agent_mode == 'json-agent':
-            return self.json_agent(prompt, custom=True)
+            return self.json_agent(prompt, custom_agent=True)
         
         return self.text_code(prompt) # default
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field, validator, StrictInt
 from datetime import datetime
 
@@ -8,6 +8,12 @@ from agent_files.objective_defs import PRO_description, PRO_examples, PRO_schema
 from agent_files.objective_defs import SO_schema, SO_required, SO_description, SO_data, SO_examples
 from agent_files.objective_defs import SFO_schema, SFO_required, SFO_description, SFO_data, SFO_examples
 from agent_files.objective_defs import QWO_schema, QWO_required, QWO_description, QWO_data, QWO_examples
+from agent_files.objective_defs import CMO_default, PRO_default, SO_default, SFO_default, QWO_default
+
+DATA_MODES = "REAL, TEST, SIMULATED, EXERCISE"
+MARKINGS = "'U', 'C', 'S', 'TS', 'U//FOUO'"
+DEFAULT_DATA_MODE = "TEST"
+DEFAULT_MARKINGS = "'U'"
 
 @dataclass
 class Objective:
@@ -15,6 +21,7 @@ class Objective:
     obj_name: str
     schema: str
     required: str
+    default: str
     description: str
     data: dict
     examples: Optional[List[str]]
@@ -24,6 +31,7 @@ catalog_maintenance = Objective(name='CatalogMaintenanceObjective',
                                 obj_name='Catalog Maintenance Objective',
                                 schema=CMO_schema,
                                 required=CMO_required,
+                                default=CMO_default,
                                 description=CMO_description,
                                 data=CMO_data,
                                 examples=CMO_examples
@@ -33,6 +41,7 @@ periodic_revisit = Objective(name='PeriodicRevisitObjective',
                              obj_name='Periodic Revisit Objective',
                              schema=PRO_schema,
                              required=PRO_required,
+                             default=PRO_default,
                              description=PRO_description,
                              data=PRO_data,
                              examples=PRO_examples
@@ -42,6 +51,7 @@ search_def = Objective(name='SearchObjective',
                        obj_name='Search Objective',
                        schema=SO_schema,
                        required=SO_required,
+                       default=SO_default,
                        description=SO_description,
                        data=SO_data,
                        examples=SO_examples
@@ -51,6 +61,7 @@ schedule_filler_def = Objective(name='ScheduleFillerObjective',
                                 obj_name='Schedule Filler Objective',
                                 schema=SFO_schema,
                                 required=SFO_required,
+                                default=SFO_default,
                                 description=SFO_description,
                                 data=SFO_data,
                                 examples=SFO_examples
@@ -60,6 +71,7 @@ quality_window_def = Objective(name='QualityWindowObjective',
                                obj_name='Quality Window Objective',
                                schema=QWO_schema,
                                required=QWO_required,
+                               default=QWO_default,
                                description=QWO_description,
                                data=QWO_data,
                                examples=QWO_examples
@@ -75,15 +87,19 @@ kv_objectives = {
     }
 
 class CatalogMaintenanceObjective(BaseModel):
+    objective_def_name: str = Field(default="CatalogMaintenanceObjective", description="Exact name of Objective definition.")
     sensor_name: str = Field(description="String Names of Sensor to perform Catalog Maintenance with.")
     data_mode: str = Field(description="String type for the Machina Common DataModeType being generated.")
     classification_marking: str = Field(description="Classification level of objective intents.")
     patience_minutes: int = Field(default=30, description="Amount of time to wait until it's assumed a `SENT` intent failed.")
     end_time_offset_minutes: int = Field(default=20, description="Amount of minutes into the future to let astroplan schedule an intent.")
     objective_name: str = Field(default="Catalog Maintenance Objective", description="The common name for this objective.")
-    objective_start_time: datetime = Field(default=None, description="The earliest time when the objective should begin execution.")
-    objective_end_time: datetime = Field(default=None, description="The earliest time when the objective should end execution.")
+    objective_start_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should begin execution.")
+    objective_end_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should end execution.")
     priority: int = Field(default=10, description="Astroplan Scheduler Priority.")
+
+    class Config:
+        extra = "forbid"  # Forbids fields that are not defined
 
     @validator("sensor_name")
     def validate_sensor_name(cls, field):
@@ -104,6 +120,7 @@ class CatalogMaintenanceObjective(BaseModel):
         return field
     
 class PeriodicRevisitObjective(BaseModel):
+    objective_def_name: str = Field(default="PeriodicRevisitObjective", description="Exact name of Objective definition.")
     target_id: StrictInt = Field(description="5 Digit RSO satcat id.")
     sensor_name: str = Field(description="Name of Sensor to perform periodic revisit with.")
     data_mode: str = Field(description="String type for the Machina Common DataModeType being generated.")
@@ -111,9 +128,12 @@ class PeriodicRevisitObjective(BaseModel):
     revisits_per_hour: int = Field(default=1, description="Desired number of times to observe each target each hour.")
     hours_to_plan: int = Field(default=24, description="Maximum hours to plan.")
     objective_name: str = Field(default="Periodic Revisit Objective", description="Name for this objective.")
-    objective_start_time: datetime = Field(default=None, description="The earliest time when the objective should begin execution.")
-    objective_end_time: datetime = Field(default=None, description="The earliest time when the objective should end execution.")
+    objective_start_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should begin execution.")
+    objective_end_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should end execution.")
     priority: int = Field(default=2, description="Astroplan Scheduler Priority, defaults to 2 (3rd highest priority).")
+
+    class Config:
+        extra = "forbid"  # Forbids fields that are not defined
 
     @validator("target_id", pre=True)
     def validate_target_id(cls, field):
@@ -140,6 +160,7 @@ class PeriodicRevisitObjective(BaseModel):
         return field
 
 class SearchObjective(BaseModel):
+    objective_def_name: str = Field(default="SearchObjective", description="Exact name of Objective definition.")
     target_id: StrictInt = Field(description="5 Digit RSO satcat id")
     sensor_name: str = Field(description="Name of Sensor to perform search")
     data_mode: str = Field(description="String type for the Machina Common DataModeType being generated.")
@@ -148,12 +169,15 @@ class SearchObjective(BaseModel):
     final_offset: int = Field(default=30, description="Amount of time after the RSO's current state to start the search at (s). Defaults to 30. Max is 1800.")
     objective_name: str = Field(default="Search Objective", description="The common name for this objective.")
     frame_overlap_percentage: float = Field(default=0.5, description="Percentage of frames that will overlap from one to the next. Defaults to 0.5")
-    objective_start_time: datetime = Field(default=None, description="The earliest time when the objective should begin execution.")
-    objective_end_time: datetime = Field(default=None, description="The earliest time when the objective should end execution.")
+    objective_start_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should begin execution.")
+    objective_end_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should end execution.")
     number_of_frames: int = Field(default=None, description="Optional number of frames for the search.")
     integration_time: int = Field(default=None, description="Optional integration time for the search.")
     priority: int = Field(default=0, description="Astroplan Scheduler Priority, defaults to 0 (highest priority).")
     end_time_offset_minutes: int = Field(default=20, description="Amount of minutes into the future to let astroplan schedule an intent. Defaults to 20 minutes.")
+
+    class Config:
+        extra = "forbid"  # Forbids fields that are not defined
 
     @validator("initial_offset", "final_offset")
     def validate_offsets(cls, value):
@@ -192,15 +216,19 @@ class SearchObjective(BaseModel):
         return field
 
 class ScheduleFillerObjective(BaseModel):
+    objective_def_name: str = Field(default="ScheduleFillerObjective", description="Exact name of Objective definition.")
     sensor_name: str = Field(description="Name of Sensor to perform Schedule Filler with.")
     data_mode: str = Field(description="String type for the Machina Common DataModeType being generated.")
     classification_marking: str = Field(description="Classification level of objective intents.")
     scheduling_density: float = Field(default=15.0, description="Length of intent scheduling blocks (minutes).")
     hours_to_plan: int = Field(default=24, description="Maximum hours to plan.")
     objective_name: str = Field(default="New Schedule Filler Objective", description="The common name for this objective.")
-    objective_start_time: datetime = Field(default=None, description="The earliest time when the objective should begin execution.")
-    objective_end_time: datetime = Field(default=None, description="The earliest time when the objective should end execution.")
+    objective_start_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should begin execution.")
+    objective_end_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should end execution.")
     priority: int = Field(default=10, description="Astroplan Scheduler Priority.")
+
+    class Config:
+        extra = "forbid"  # Forbids fields that are not defined
 
     @validator("sensor_name", "data_mode", "classification_marking")
     def validate_required_fields(cls, field):
@@ -228,17 +256,21 @@ class Payload(BaseModel):
     velocity_accuracy: int
     
 class QualityWindowObjective(BaseModel):
+    objective_def_name: str = Field(default="QualityWindowObjective", description="Exact name of Objective definition.")
     sensor_name: str = Field(description="String Name of Sensor to perform Quality Window with.")
-    #payload_list: str = Field(description="list[dict] of payload info needed for this objective.")
+    # TODO: Make payload_list a Optional[Union[List[Payload], str]] that can accept "" empty strings
     payload_list: List[Payload] = Field(description="List[Payload] of payload info needed for this objective.")
     data_mode: str = Field(description="String type for the Machina Common DataModeType being generated.", default="REAL")
     classification_marking: str = Field(description="Classification level of objective intents.", default="U")
     scheduling_density: float = Field(default=5.0, description="Scheduling density for the objective.")
     hours_to_plan: int = Field(default=24, description="Number of hours to plan for the objective.")
     objective_name: str = Field(default="Quality Window Objective", description="The common name for this objective.")
-    objective_start_time: datetime = Field(default=None, description="The earliest time when the objective should begin execution.")
-    objective_end_time: datetime = Field(default=None, description="The earliest time when the objective should end execution.")
+    objective_start_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should begin execution.")
+    objective_end_time: Optional[Union[datetime, str]] = Field(default=None, description="The earliest time when the objective should end execution.")
     priority: int = Field(default=1, description="Astroplan Scheduler Priority.")
+
+    class Config:
+        extra = "forbid"  # Forbids fields that are not defined
 
     @validator("sensor_name", "payload_list", "data_mode", "classification_marking")
     def validate_fields(cls, field):

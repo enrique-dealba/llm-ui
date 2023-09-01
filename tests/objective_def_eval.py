@@ -24,6 +24,12 @@ QWO_list = [
     "Initiate a Quality Window Objective with sensor RME56, planning for 48 hours, using TEST mode, and commencing 8 hours later",
     "Configure a new quality window for sensor RME21 in TEST mode, lasting 24 hours, incorporating specific payloads, and ending 8 hours later",
     "Prepare a quality window with sensor RME54, scheduling density of 3.0, objective to begin in 15 hours from now, in TEST mode, with classification marking 'U'"
+    "Make a quality window for the next 72 hours using sensor RME97, in TEST mode, including priority 3 and 5 payloads, with a priority level of 1",
+    "I want a quality window objective using sensor RME91, starting now, in TEST mode, for 20 hours, with a planning window starting now and ending 8 hours later",
+    "Set up a quality window objective with sensor RME52, in TEST mode, priority 4 lasting for 30 hours",
+    "Initiate a quality window objective for sensor RME18, including payload for satellite 89918, with position accuracy of 0.8, planning for 36 hours in TEST mode, with classification marking 'U'",
+    "Create a new quality window for sensor RME56, lasting 48 hours, with payload information for satellite 10045, including specific state vector details and velocity accuracy of 4, in TEST mode",
+    "I want a 72-hour quality window with sensor RME32, including multiple payloads with distinct satellites, state vectors, and accuracy requirements, commencing at '2023-07-04T00:00:00.000Z'",
 ]
 
 SO_list = [
@@ -53,6 +59,34 @@ PRO_list = [
     "Observe target 33333 using sensor RME72, once per hour, for a 6-hour plan, starting at 2023-12-20 00:08:00, with a classification marking of 'U'"
 ]
 
+SFO_list += [
+    ("Create a new schedule filler for sensor RME50 with a scheduling density of 15 minutes, "
+     "'U' markings, and priority of 5"
+    ),
+    "I want a schedule filler for the next 48 hours for sensor RME70, with data mode 'TEST' and priority of 8",
+    "Generate a Schedule Filler for sensor RME56, with a scheduling density of 30 minutes, priority of 7, and name it “CriticalTest”. Also want TEST mode and C markings"
+]
+
+SO_list += [
+    "Create a search objective for target ID 56789 using sensor RME01, with an initial offset of 100 seconds, 0.35 frame overlap, and ending in 20 mins",
+    "Make a new search for target 87654 using sensor RME03 with data mode 'TEST' and a priority of 2, ending in 15 minutes",
+    "Set up a search for target 28884 using sensor RME04 with integration time of 100 seconds, and .60 frame overlap"
+]
+
+CMO_list += [
+    ("I want to make a new catalog maintenance for sensor RME01 with default priority, 'U' marking, "
+     "and TEST data mode"
+    ),
+    "Create a new catalog maintenance objective for sensor RME01 with an end time offset of 15 minutes and priority 8, using 'U' marking and TEST data mode",
+    "Schedule a catalog maintenance on sensor RME12, with a 60 min patience window on REAL mode",
+]
+
+PRO_list += [
+    "Track object 12345 with sensor RME08, revisiting twice per hour for the next 16 hours, starting now",
+    "Observe satellite 67890 using sensor RME01, once per hour for a total of 12 hours, with priority 3",
+    "Make a periodic revisit for target 33333 using sensor RME72, once per hour, for a 6-hour plan, starting at 2023-12-20 00:08:00, with a marking of 'TS' and TEST mode"
+]
+
 JSON_EVALS = {
     "ScheduleFillerObjective": SFO_list,
     "QualityWindowObjective": QWO_list,
@@ -62,9 +96,8 @@ JSON_EVALS = {
 }
 
 def create_parser() -> argparse.ArgumentParser:
-    """Creates a command-line argument parser."""
     parser = argparse.ArgumentParser(description="Run json-agent evals")
-	# Usage: `--llm local` or `--llm davinci` etc
+	# Usage: `--llm local` or `--llm davinci` or `chatgpt` etc
     parser.add_argument('--llm', choices=['local', 'chatgpt', 'davinci'], help='Choose an LLM for json-agent evals')
     return parser
 
@@ -72,13 +105,16 @@ if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
     """
-    RESULTS:
+    ======= RESULTS =======
     thenlper/gte-small: 19 / 23 -- 0.83%
     thenlper/gte-base: 16 / 23 -- 0.70%
     BAAI/bge-base-en: 14 / 23 -- 0.61%
     BAAI/bge-small-en: 17 / 23 -- 0.74%
     intfloat/e5-small-v2: 17 / 23 -- 0.74%
     sentence-transformers/all-MiniLM-L6-v2: 19 / 23 -- 0.83%
+    ======= UPDATED =======
+    thenlper/gte-small: 40/40
+    sentence-transformers/all-MiniLM-L6-v2: 35/40 (cumulative confidence is high...)
     """
     model_name = 'sentence-transformers/all-MiniLM-L6-v2'
     embedding_fn = get_embedding_fn(model_name=model_name)

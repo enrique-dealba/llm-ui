@@ -2,6 +2,22 @@
 
 LLM-UI is a comprehensive user interface for interacting with large language models (LLMs). It uses 🦜️ Langchain for vector database retrieval and incorporates memory mechanisms for handling both local and non-local LLM interactions.
 
+## New Features: JSON Agent
+
+The JSON agent, implemented in `agent_logic.py`, is a new feature that allows for more structured and dynamic interactions with the LLM.
+
+Usage: `python agent_app.py --llm davinci --mode json-agent`
+
+Example: This mode works for Spaceplan Objective defintions like
+* Schedule Filler
+* Catalog Maintenance
+* Periodic Revisit
+* Search
+* Quality Window
+
+You can prompt the agent with a task like:
+* `Track object 23456 with sensor RME00 revisiting twice per hour for the next 16 hours`
+
 ## Installation
 
 Clone the repo to your local machine.

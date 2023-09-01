@@ -1,71 +1,15 @@
 CMO_schema = '''{
   "title": "CatalogMaintenanceObjective",
   "type": "object",
-  "properties": {
-    "sensor_name": {
-      "type": "string",
-      "description": "String Names of Sensor to perform Catalog Maintenance with."
-    },
-    "data_mode": {
-      "type": "string",
-      "description": "String type for the Machina Common DataModeType being generated."
-    },
-    "classification_marking": {
-      "type": "string",
-      "description": "Classification level of objective intents."
-    },
-    "patience_minutes": {
-      "type": "integer",
-      "default": 30,
-      "description": "Amount of time to wait until it's assumed a `SENT` intent failed."
-    },
-    "end_time_offset_minutes": {
-      "type": "integer",
-      "default": 20,
-      "description": "Amount of minutes into the future to let astroplan schedule an intent."
-    },
-    "objective_name": {
-      "type": "string",
-      "default": "Catalog Maintenance Objective",
-      "description": "The common name for this objective."
-    },
-    "objective_start_time": {
-      "type": "string",
-      "format": "date-time",
-      "default": null,
-      "description": "The earliest time when the objective should begin execution."
-    },
-    "objective_end_time": {
-      "type": "string",
-      "format": "date-time",
-      "default": null,
-      "description": "The earliest time when the objective should end execution."
-    },
-    "priority": {
-      "type": "integer",
-      "default": 10,
-      "description": "Astroplan Scheduler Priority."
-    }
-  },
-  "required": ["sensor_name", "data_mode", "classification_marking"]
-}
-'''
-
-## TODO: add defaults
-CMO_schema_short = '''{
-  "title": "CatalogMaintenanceObjective",
-  "type": "object",
-  "properties": {
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "patience_minutes": { "type": "integer" },
-    "end_time_offset_minutes": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer" }
-  },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "patience_minutes": { "type": "integer", "default": 30 },
+  "end_time_offset_minutes": { "type": "integer", "default": 20 },
+  "objective_name": { "type": "string", "default": "Catalog Maintenance Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 10 },
   "required": ["sensor_name", "data_mode", "classification_marking"]
 }
 '''
@@ -76,101 +20,40 @@ CMO_default = """{
   patience_minutes: 30,
   end_time_offset_minutes: 20,
   objective_name: "Catalog Maintenance Objective",
-  objective_start_time: None,
-  objective_end_time: None,
+  objective_start_time: "",
+  objective_end_time: "",
   priority: 10
 }
 """
 
 CMO_data = {
-    "title": "CatalogMaintenanceObjective",
-    "type": "object",
-    "properties": {
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "patience_minutes": { "type": "integer" },
-    "end_time_offset_minutes": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer" }
-    },
-    "required": ["sensor_name", "data_mode", "classification_marking"]
+  "title": "CatalogMaintenanceObjective",
+  "type": "object",
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "patience_minutes": { "type": "integer", "default": 30 },
+  "end_time_offset_minutes": { "type": "integer", "default": 20 },
+  "objective_name": { "type": "string", "default": "Catalog Maintenance Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 10 },
+  "required": ["sensor_name", "data_mode", "classification_marking"]
 }
 
 PRO_schema = '''{
   "title": "PeriodicRevisitObjective",
   "type": "object",
-  "properties": {
-    "target_id": {
-      "type": "integer",
-      "description": "5 Digit RSO satcat id."
-    },
-    "sensor_name": {
-      "type": "string",
-      "description": "Name of Sensor to perform periodic revisit with."
-    },
-    "data_mode": {
-      "type": "string",
-      "description": "String type for the Machina Common DataModeType being generated."
-    },
-    "classification_marking": {
-      "type": "string",
-      "description": "Classification level of objective intents."
-    },
-    "revisits_per_hour": {
-      "type": "integer",
-      "default": 1,
-      "description": "Desired number of times to observe each target each hour."
-    },
-    "hours_to_plan": {
-      "type": "integer",
-      "default": 24,
-      "description": "Maximum hours to plan."
-    },
-    "objective_name": {
-      "type": "string",
-      "default": "Periodic Revisit Objective",
-      "description": "Name for this objective."
-    },
-    "objective_start_time": {
-      "type": "string",
-      "format": "date-time",
-      "default": null,
-      "description": "The earliest time when the objective should begin execution."
-    },
-    "objective_end_time": {
-      "type": "string",
-      "format": "date-time",
-      "default": null,
-      "description": "The earliest time when the objective should end execution."
-    },
-    "priority": {
-      "type": "integer",
-      "default": 2,
-      "description": "Astroplan Scheduler Priority, defaults to 2 (3rd highest priority)."
-    }
-  },
-  "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
-}
-'''
-
-PRO_schema_short = '''{
-  "title": "PeriodicRevisitObjective",
-  "type": "object",
-  "properties": {
-    "target_id": { "type": "integer" },
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "revisits_per_hour": { "type": "integer" },
-    "hours_to_plan": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer" }
-  },
+  "target_id": { "type": "integer" },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "revisits_per_hour": { "type": "integer", "default": 1 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Periodic Revisit Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 2 },
   "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
 }
 '''
@@ -181,26 +64,26 @@ PRO_default = """{
   revisits_per_hour: 1,
   hours_to_plan: 24,
   objective_name: "Periodic Revisit Objective",
+  objective_start_time: "",
+  objective_end_time: "",
   priority: 2,
 }
 """
 
 PRO_data = {
-    "title": "PeriodicRevisitObjective",
-    "type": "object",
-    "properties": {
-    "target_id": { "type": "integer" },
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "revisits_per_hour": { "type": "integer" },
-    "hours_to_plan": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer" }
-    },
-    "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
+  "title": "PeriodicRevisitObjective",
+  "type": "object",
+  "target_id": { "type": "integer" },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "revisits_per_hour": { "type": "integer", "default": 1 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Periodic Revisit Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 2 },
+  "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
 }
 
 CMO_example_1 = '''{
@@ -229,7 +112,7 @@ PRO_example_1 = '''{
 PRO_examples = [PRO_example_1]
 
 ## 119 tokens
-PRO_description = """The PeriodicRevisitObjective class in Python 
+PRO_description_prev = """The PeriodicRevisitObjective class in Python 
 is designed to create a specific observation objective for a given target, with parameters 
 to configure the observation process such as sensor name, data mode, revisit frequency, 
 and duration to plan. It sets an end time for the objective, either based on input or a 
@@ -239,6 +122,16 @@ scheduled monitoring or tracking of specific targets (such as celestial objects 
 through designated sensors, allowing for controlled and periodic observations.
 """
 
+PRO_description = """The PeriodicRevisitObjective class is designed to create a specific observation 
+objective for a given target, with parameters to configure the observation process 
+such as sensor name, data mode, revisit frequency, and duration. Periodic Revisit sets an end time 
+for the objective, either based on input or a default of 10 minutes from the current time, 
+and includes handling for converting input string times to datetime objects. Revisit is 
+useful in applications that require scheduled monitoring or tracking of specific targets 
+(such as celestial objects or satellites) through designated sensors, allowing for controlled 
+and periodic observations.
+"""
+
 PRO_queries = [
     "Track object 54321 with sensor RME03, revisiting once per hour for the next 24 hours",
     "Track object 12345 with sensor RME08, revisiting twice per hour for the next 16 hours",
@@ -246,7 +139,7 @@ PRO_queries = [
 ]
 
 ## 108 tokens
-CMO_description = """The CatalogMaintenanceObjective class 
+CMO_description_prev = """The CatalogMaintenanceObjective class 
 represents a scheduling objective for catalog maintenance using a specific sensor 
 and algorithm, most likely related to astronomical observations or tracking. It 
 specifies parameters such as the sensor's name, data mode, scheduling priority, 
@@ -255,6 +148,15 @@ maintenance task is to be executed. By allowing precise configuration of these
 aspects, it seems to facilitate optimized scheduling in a system where timing 
 and priority must be meticulously managed, such as in an observation or tracking 
 environment. Useful for satellite or astronomical observation planning.
+"""
+
+CMO_description = """The CatalogMaintenanceObjective class represents a scheduling objective for catalog 
+maintenance using a specific sensor and algorithm, related to astronomical observations or 
+tracking. Catalog Maintenance specifies parameters such as the sensor's name, data mode, scheduling priority, 
+timing constraints, and classification marking, providing control over how the maintenance 
+task is to be executed. By allowing precise configuration of these parameters, it facilitates 
+optimized scheduling in a system where timing and priority are required, such as in an observation 
+or tracking environment. CatalogMaintenanceObjective is useful for satellite or astronomical observation planning.
 """
 
 CMO_queries = [
@@ -283,22 +185,20 @@ CMO_queries = [
 SO_schema = """{
   "title": "SearchObjective",
   "type": "object",
-  "properties": {
-    "target_id": { "type": "integer" },
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "initial_offset": { "type": "integer" },
-    "final_offset": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "frame_overlap_percentage": { "type": "number" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "number_of_frames": { "type": "integer" },
-    "integration_time": { "type": "integer" },
-    "priority": { "type": "integer" },
-    "end_time_offset_minutes": { "type": "integer" }
-  },
+  "target_id": { "type": "integer" },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "initial_offset": { "type": "integer", "default": 30 },
+  "final_offset": { "type": "integer", "default": 30 },
+  "objective_name": { "type": "string", "default": "Search Objective" },
+  "frame_overlap_percentage": { "type": "number", "default": 0.5 },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "number_of_frames": { "type": "integer" },
+  "integration_time": { "type": "integer" },
+  "priority": { "type": "integer", "default": 0 },
+  "end_time_offset_minutes": { "type": "integer", "default": 20 },
   "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
 }
 """
@@ -306,22 +206,20 @@ SO_schema = """{
 SO_data = {
   "title": "SearchObjective",
   "type": "object",
-  "properties": {
-    "target_id": { "type": "integer" },
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "initial_offset": { "type": "integer" },
-    "final_offset": { "type": "integer" },
-    "objective_name": { "type": "string" },
-    "frame_overlap_percentage": { "type": "number" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "number_of_frames": { "type": "integer" },
-    "integration_time": { "type": "integer" },
-    "priority": { "type": "integer" },
-    "end_time_offset_minutes": { "type": "integer" }
-  },
+  "target_id": { "type": "integer" },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "initial_offset": { "type": "integer", "default": 30 },
+  "final_offset": { "type": "integer", "default": 30 },
+  "objective_name": { "type": "string", "default": "Search Objective" },
+  "frame_overlap_percentage": { "type": "number", "default": 0.5 },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "number_of_frames": { "type": "integer" },
+  "integration_time": { "type": "integer" },
+  "priority": { "type": "integer", "default": 0 },
+  "end_time_offset_minutes": { "type": "integer", "default": 20 },
   "required": ["target_id", "sensor_name", "data_mode", "classification_marking"]
 }
 
@@ -332,6 +230,8 @@ SO_default = """{
   final_offset: 30,
   objective_name: "Search Objective",
   frame_overlap_percentage: 0.5,
+  objective_start_time: "",
+  objective_end_time: "",
   number_of_frames: None,
   integration_time: None,
   priority: 0,
@@ -339,7 +239,7 @@ SO_default = """{
 }
 """
 
-SO_description = '''The SearchObjective class is  used for orchestrating a search operation 
+SO_description_prev = '''The SearchObjective class is  used for orchestrating a search operation 
 involving satellite sensors. It encapsulates  details of a search pattern along the 
 satellite's orbit path, including target ID, sensor name, initial and final offsets, 
 frame overlap percentage, objective start and end times, and other related attributes. 
@@ -347,6 +247,11 @@ The class constructor checks the validity of specific parameters such as offset 
 and frame overlap percentages, and sets the objective end time accordingly. It is likely 
 to be useful in satellite-based observation systems where precise control and scheduling of 
 sensor operations are required, coordinating searches for specific targets along orbital paths.
+'''
+
+SO_description = '''The SearchObjective class is used for orchestrating a search operation involving satellite 
+sensors. Search encapsulates details of a search pattern along the satellite's orbit path, 
+including parameters like target ID, sensor name, initial and final offsets, frame overlap percentage, objective start and end times, and other related fields. The SearchObjective constructor checks the validity of specific parameters such as offset limits and frame overlap percentages, and sets the objective end time accordingly. Useful in satellite-based observation systems where precise control and scheduling of sensor operations are required, coordinating searches for specific targets along orbital paths.
 '''
 
 SO_example_1 = '''{
@@ -367,7 +272,7 @@ SO_examples = [SO_example_1]
 
 ## Schedule Filler Objective
 
-SFO_description = """The ScheduleFillerObjective class is designed to 
+SFO_description_prev = """The ScheduleFillerObjective class is designed to 
 define an objective for scheduling, particularly regarding a sensor's activity. It takes 
 various parameters such as the sensor name, data mode, scheduling density, and others, 
 allowing the scheduling of blocks with a specific duration and priority within a 24-hour 
@@ -377,20 +282,25 @@ class Objective, this class is likely to be used in a broader system that requir
 scheduling of tasks or events, perhaps for astronomical or satellite operations.
 """
 
+SFO_description = """The ScheduleFillerObjective class is used to define an objective for scheduling, particularly 
+regarding a sensor's activity. Schedule Filler takes parameters such as the sensor name, data mode, scheduling 
+density, and others, allowing the scheduling of blocks with a specific duration and priority within 
+a 24-hour time frame. The Schedule Filler's end time can be explicitly set or calculated as 24 hours from 
+the current time. ScheduleFillerObjective is useful for detailed scheduling of tasks for astronomical or satellite operations.
+"""
+
 SFO_schema = '''{
   "title": "ScheduleFillerObjective",
   "type": "object",
-  "properties": {
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "scheduling_density": { "type": "number" },
-    "hours_to_plan": { "type": "integer", "default": 24 },
-    "objective_name": { "type": "string", "default": "Schedule Filler Objective" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer", "default": 10 }
-  },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "scheduling_density": { "type": "number", "default": 15.0 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Schedule Filler Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 10 },
   "required": ["sensor_name", "data_mode", "classification_marking"]
 }
 '''
@@ -398,21 +308,29 @@ SFO_schema = '''{
 SFO_data = {
   "title": "ScheduleFillerObjective",
   "type": "object",
-  "properties": {
-    "sensor_name": { "type": "string" },
-    "data_mode": { "type": "string" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "scheduling_density": { "type": "number" },
-    "hours_to_plan": { "type": "integer", "default": 24 },
-    "objective_name": { "type": "string", "default": "Schedule Filler Objective" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer", "default": 10 }
-  },
+  "sensor_name": { "type": "string" },
+  "data_mode": { "type": "string" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "scheduling_density": { "type": "number", "default": 15.0 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Schedule Filler Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 10 },
   "required": ["sensor_name", "data_mode", "classification_marking"]
 }
 
 SFO_required = "sensor_name, data_mode, classification_marking"
+
+SFO_default = """{
+  scheduling_density: 15.0,
+  hours_to_plan: 24,
+  objective_name: "New Schedule Filler Objective",
+  objective_start_time: "",
+  objective_end_time: "",
+  priority: 10,
+}
+"""
 
 SFO_example_1 = '''{
   "objective_def_name": "ScheduleFillerObjective",
@@ -429,7 +347,7 @@ SFO_examples = [SFO_example_1]
 
 ## Quality Window Objective
 
-QWO_description = """The QualityWindowObjective class is central to modeling and 
+QWO_description_prev = """The QualityWindowObjective class is central to modeling and 
 working with quality objectives in a satellite or space object tracking system. 
 The QualityObjectiveObject class encompasses the parameters and mechanisms (using 
 an Unscented Kalman Filter) for a particular quality objective, likely aimed at 
@@ -439,21 +357,23 @@ handling the specifics of sensors, payloads, scheduling, and logging, and could 
 used as a part of a larger scheduling or mission planning system.
 """
 
+QWO_description = """The QualityWindowObjective class is useful for modeling and working with quality objectives in a 
+satellite or space object tracking system. The QualityObjectiveObject class encompasses the parameters and mechanisms (using an Unscented Kalman Filter) for a particular quality objective, aimed at non-linear state estimation in observing space objects. Quality window is geared towards orchestrating these objectives, handling the specifics of sensors, payloads, scheduling, and logging. Window is useful for more complex scheduling or mission planning systems.
+"""
+
 QWO_schema = '''{
   "title": "QualityWindowObjective",
   "type": "object",
-  "properties": {
-    "sensor_name": { "type": "string" },
-    "payload_list": { "type": "string" },
-    "data_mode": { "type": "string", "default": "REAL" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "scheduling_density": { "type": "number", "default": 5 },
-    "hours_to_plan": { "type": "integer", "default": 24 },
-    "objective_name": { "type": "string", "default": "Quality Window Objective" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer", "default": 1 }
-  },
+  "sensor_name": { "type": "string" },
+  "payload_list": { "type": "string" },
+  "data_mode": { "type": "string", "default": "REAL" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "scheduling_density": { "type": "number", "default": 5 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Quality Window Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 1 },
   "required": ["sensor_name", "payload_list", "data_mode", "classification_marking"]
 }
 '''
@@ -461,22 +381,32 @@ QWO_schema = '''{
 QWO_data = {
   "title": "QualityWindowObjective",
   "type": "object",
-  "properties": {
-    "sensor_name": { "type": "string" },
-    "payload_list": { "type": "string" },
-    "data_mode": { "type": "string", "default": "REAL" },
-    "classification_marking": { "type": "string", "default": "U" },
-    "scheduling_density": { "type": "number", "default": 5 },
-    "hours_to_plan": { "type": "integer", "default": 24 },
-    "objective_name": { "type": "string", "default": "Quality Window Objective" },
-    "objective_start_time": { "type": "string", "format": "date-time" },
-    "objective_end_time": { "type": "string", "format": "date-time" },
-    "priority": { "type": "integer", "default": 1 }
-  },
+  "sensor_name": { "type": "string" },
+  "payload_list": { "type": "string" },
+  "data_mode": { "type": "string", "default": "REAL" },
+  "classification_marking": { "type": "string", "default": "U" },
+  "scheduling_density": { "type": "number", "default": 5 },
+  "hours_to_plan": { "type": "integer", "default": 24 },
+  "objective_name": { "type": "string", "default": "Quality Window Objective" },
+  "objective_start_time": { "type": "string", "format": "date-time" },
+  "objective_end_time": { "type": "string", "format": "date-time" },
+  "priority": { "type": "integer", "default": 1 },
   "required": ["sensor_name", "payload_list", "data_mode", "classification_marking"]
 }
 
 QWO_required = "sensor_name, payload_list, data_mode, classification_marking"
+
+QWO_default = """{
+  data_mode: "REAL",
+  classification_marking: "U",
+  scheduling_density: 5.0,
+  hours_to_plan: 24,
+  objective_name: "Quality Window Objective",
+  objective_start_time: "",
+  objective_end_time: "",
+  priority: 1,
+}
+"""
 
 QWO_example_1 = '''{
         "sensor_name": "RME37",
