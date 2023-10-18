@@ -1,12 +1,12 @@
 {
-    "objective_def_name": "CatalogMaintenanceObjective",
-    "sensor_name": "RME01",
+    "objective_def_name": "SearchObjective",
+    "objective_name": "Search Objective",
+    "target_id": 28884,
+    "sensor_name": "RME04",
+    "initial_offset": 30,
+    "final_offset": 30,
+    "objective_start_time": "2023-08-21T18:47:19.059212",
+    "objective_end_time": "2023-08-21T18:57:19.059284",
     "data_mode": "TEST",
-    "classification_marking": "U",
-    "patience_minutes": 30,
-    "end_time_offset_minutes": 20,
-    "objective_name": "Catalog Maintenance Objective",
-    "objective_start_time": null,
-    "objective_end_time": null,
-    "priority": 10
+    "classification_marking": "U"
 }
