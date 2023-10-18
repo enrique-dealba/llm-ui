@@ -48,6 +48,9 @@ from langchain.agents import AgentType
 from langchain.schema.output_parser import OutputParserException
 from langchain.output_parsers import PydanticOutputParser
 
+## VLLM IMPORTS ##
+from langchain.llms import VLLM
+
 
 os.environ['OPENAI_API_KEY'] = open_ai_key
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = hf_key
@@ -125,8 +128,12 @@ class AgentServer:
     """LLM Agent Flask server with Agent operations."""
 
     def __init__(self, llm_mode: str='davinci', agent_mode: str='text-code',
-                 template: str=""):
-        self.app = app 
+                 template: str="", is_flask_app: bool=True):
+        if is_flask_app:
+            self.app = app
+        else:
+            self.app = None
+        
         self.tokenizer = None
         self.model = None
         self.llm = None
@@ -305,6 +312,13 @@ class AgentServer:
             directory_path = config.MODEL_DIRECTORY_PATH
             self.tokenizer = AutoTokenizer.from_pretrained(directory_path)
             self.model = AutoModelForCausalLM.from_pretrained(directory_path)
+        if llm_mode == 'vllm':
+            self.llm = VLLM(model=config.VLLM_MODEL,
+                            trust_remote_code=True,
+                            max_new_tokens=512,
+                            top_k=10,
+                            top_p=0.95,
+                            temperature=config.TEMPERATURE)
         elif llm_mode == 'chatgpt':
             self.llm = ChatOpenAI(model_name="gpt-3.5-turbo",
                                   temperature=config.TEMPERATURE)
@@ -627,7 +641,11 @@ class AgentServer:
         responses, valid_json = self.get_json_responses(prompt, responses)
 
         self.reset_thoughts()
-        return jsonify({'response': responses}), valid_json
+
+        if self.app:  # If in Flask context
+            return jsonify({'response': responses}), valid_json
+        else:  # If in CLI context
+            return {'response': responses}, valid_json
     
     def test_json(self, prompt: str, custom: bool = True):
         use_time = False
