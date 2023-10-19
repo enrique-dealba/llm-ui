@@ -8,7 +8,7 @@ import re
 
 from typing import List, Dict, Any, Optional, Union
 from apikeys import open_ai_key, hf_key, serpapi_key, langsmith_key
-from prompts import server_template, agent_template, template_with_history, template_with_history_json
+from prompts import server_template, agent_template, template_with_history, template_with_history_json, template_with_history_api
 from agent_utils import get_agent_thoughts, extract_code_from_response
 from test_files.responses import responses_1, responses_2, code_1, code_2, code_3, code_4
 
@@ -48,8 +48,13 @@ from langchain.agents import AgentType
 from langchain.schema.output_parser import OutputParserException
 from langchain.output_parsers import PydanticOutputParser
 
+## SKYFIELD API AGENT ##
+from tools.custom_tools import get_skyfield_planets_tool, get_planet_distance_tool, get_latitude_longitude_tool
+from tools.custom_tools import get_skyfield_satellites_tool, get_next_visible_time_for_satellite_tool
+
 ## VLLM IMPORTS ##
-from langchain.llms import VLLM
+# from langchain.llms import VLLM
+from prompts import api_template_with_history_mistral_1, api_template_with_history_mistral_2
 
 
 os.environ['OPENAI_API_KEY'] = open_ai_key
@@ -63,7 +68,7 @@ os.environ['LANGCHAIN_PROJECT'] = 'edealba-llm-ui'
 
 app = Flask(__name__)
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 class ListHandler(logging.Handler): # Inherits from logging.Handler
     def __init__(self):
@@ -121,8 +126,8 @@ class CustomOutputParser(AgentOutputParser):
 
         return AgentAction(tool=action, tool_input=action_input.strip(" ").strip('"'), log=llm_output)
 
-handler = ListHandler()
-logging.getLogger().addHandler(handler)
+# handler = ListHandler()
+# logging.getLogger().addHandler(handler)
 
 class AgentServer:
     """LLM Agent Flask server with Agent operations."""
@@ -158,6 +163,9 @@ class AgentServer:
         self.custom_json_history = None
         self.json_agent_executor = None
         self.prev_response = None
+
+        ## Open-Source LLMs
+        self.mistral = False
 
         # self.template = template
         self.persist_directory = 'docs/chroma/'
@@ -313,6 +321,7 @@ class AgentServer:
             self.tokenizer = AutoTokenizer.from_pretrained(directory_path)
             self.model = AutoModelForCausalLM.from_pretrained(directory_path)
         if llm_mode == 'vllm':
+            self.mistral = True
             self.llm = VLLM(model=config.VLLM_MODEL,
                             trust_remote_code=True,
                             max_new_tokens=512,
@@ -675,6 +684,99 @@ class AgentServer:
         
         return responses, valid_json
     
+    def init_api_agent(self):
+        custom_tools = []
+
+        ## Add list of API tools
+        custom_tools += [get_skyfield_planets_tool]
+        custom_tools += [get_planet_distance_tool]
+        custom_tools += [get_latitude_longitude_tool]
+        custom_tools += [get_skyfield_satellites_tool]
+        custom_tools += [get_next_visible_time_for_satellite_tool]
+
+
+        # TODO: template_with_history might need to be tuned/optimized
+        if self.mistral:
+            api_template = api_template_with_history_mistral_1 # or 2, 3, 4
+        else:
+            api_template = template_with_history_api
+        
+        self.custom_json_history = CustomPromptTemplate(
+            template=api_template,
+            tools=custom_tools,
+            # prefix=JSON_PREFIX,
+            # suffix=JSON_SUFFIX,
+            agent_thoughts=self.agent_thoughts,
+            input_variables=["input", "intermediate_steps", "history"]
+        )
+
+        llm_chain = LLMChain(llm=self.llm, prompt=self.custom_json_history)
+        tool_names = [t.name for t in custom_tools]
+
+        self.agent = LLMSingleActionAgent(
+            llm_chain=llm_chain,
+            output_parser=self.output_parser,
+            stop=["\nObservation:"],
+            allowed_tools=tool_names
+        )
+
+        num_memories = 3 # can play around with this (maybe 3, 4, 5, etc)
+        self.memory = ConversationBufferWindowMemory(k=num_memories)
+        self.tools = custom_tools
+
+        max_iterations = 8
+        self.json_agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=self.agent,
+            tools=self.tools,
+            verbose=True,
+            memory=self.memory,
+            max_iterations=max_iterations
+        )
+
+    def get_api_task(self, prompt: str) -> str:
+        # Prompt for API agent. Extracts relevant fields from Objective.
+        api_prompt = None
+        if self.mistral:
+            api_prompt = f'''[INST] Given the following user task: `{prompt}`, Use your Skyfield tools for planets to answer the user question. [/INST]
+'''
+        else:
+            api_prompt = f'''Given the following user task: `{prompt}`, Use your Skyfield tools for planets to answer the user question.
+'''
+        return api_prompt
+    
+    def get_api_responses(self, prompt, responses):
+        api_task = self.get_api_task(prompt)
+
+        response = ""
+        try:
+            response = self.json_agent_executor.run(api_task)
+        except ValueError as e:
+            print(f"json_agent_executor error: {e}")
+
+        agent_thoughts = self.custom_json_history.agent_thoughts
+
+        if response == "":
+            responses += agent_thoughts
+            responses += ["I don't know."]
+            self.reset_thoughts()
+            return responses, False
+        
+        responses += [response]
+        
+        return responses, True ## TODO: This 2nd param is messy...
+    
+    def api_agent(self, prompt: str):
+        responses = []
+
+        self.init_api_agent()
+
+        self.validate_json_agent() ## TODO: consider changing this name
+
+        responses, valid_json = self.get_api_responses(prompt, responses)
+
+        self.reset_thoughts()
+        return jsonify({'response': responses}), valid_json
+    
     def task_agent(self, prompt: str) -> Union[tuple, jsonify]:
         """Tasks LLM agent to process a given prompt/task."""
         if not prompt:
@@ -686,6 +788,8 @@ class AgentServer:
             return self.convo_code(prompt)
         elif self.agent_mode == 'json-agent':
             return self.json_agent(prompt, custom_agent=True)
+        elif self.agent_mode == 'api-agent':
+            return self.api_agent(prompt)
         
         return self.text_code(prompt) # default
 

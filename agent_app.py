@@ -31,7 +31,7 @@ def create_parser() -> argparse.ArgumentParser:
 	# Usage: `--llm local` or `--llm davinci` etc
     parser.add_argument('--llm', choices=['local', 'vllm', 'chatgpt', 'davinci', 'custom_gpt', 'gpt4'], help='Choose an LLM for Agent')
 	# Usage: `--mode text-code`, `--mode convo-code`, etc
-    parser.add_argument('--mode', choices=['text-code', 'convo-code', 'json-agent'], help='Choose an Agent mode')
+    parser.add_argument('--mode', choices=['text-code', 'convo-code', 'json-agent', 'api-agent'], help='Choose an Agent mode')
     return parser
 
 if __name__ == "__main__":
